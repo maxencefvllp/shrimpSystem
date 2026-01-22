@@ -33,6 +33,17 @@ const dbPromise = open({
       upload_time DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  // index.ts 初始化部分
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS algorithms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,        -- 算法名称，如 "YOLOv13-南美白对虾检测"
+      version TEXT,     -- 版本号，如 "v1.0.2"
+      file_url TEXT,    -- 文件下载地址
+      description TEXT, -- 算法描述
+      upload_time DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+`);
 })();
 
 // --- Multer 视频上传配置 ---
@@ -68,7 +79,7 @@ app.get('/user/info', (req, res) => {
     data: {
       data: [
         'Index', 'data-source', 'video-manage', 'permission', 
-        'user-manage', 'role-manage', 'menu-manage'
+        'user-manage', 'role-manage', 'menu-manage','algorithm-manage','algorithm-list'
       ]
     }
   });
@@ -131,4 +142,41 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.listen(3000, () => {
   console.log('后端服务运行在: http://localhost:3000');
+});
+
+// 1. 获取算法列表
+app.get('/algorithm', async (req, res) => {
+  const db = await dbPromise;
+  const list = await db.all('SELECT * FROM algorithms ORDER BY upload_time DESC');
+  res.json({ code: 1, data: list });
+});
+
+// 2. 上传算法包
+app.post('/upload/algorithm', upload.single('file'), async (req, res) => {
+  if (req.file) {
+    const { name, version, description } = req.body; // 从前端传来的附加信息
+    const fileUrl = `http://localhost:3000/uploads/${req.file.filename}`;
+    
+    const db = await dbPromise;
+    const result = await db.run(
+      'INSERT INTO algorithms (name, version, file_url, description) VALUES (?, ?, ?, ?)',
+      [name || req.file.originalname, version || '1.0.0', fileUrl, description || '']
+    );
+    
+    res.json({ code: 1, message: '算法包上传成功', data: { id: result.lastID } });
+  } else {
+    res.json({ code: 0, message: '上传失败' });
+  }
+});
+
+// 5. 删除视频接口 (新增)
+app.delete('/algorithm/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const db = await dbPromise;
+    await db.run('DELETE FROM algorithms WHERE id = ?', id);
+    res.json({ code: 1, message: '删除成功' });
+  } catch (err) {
+    res.json({ code: 0, message: '删除失败' });
+  }
 });

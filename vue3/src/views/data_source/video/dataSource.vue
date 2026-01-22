@@ -1,25 +1,26 @@
 <template>
   <a-card title="视频管理">
-    <div class="upload-area">
-      <a-upload-dragger
+    <!-- 插槽（Slot）技术。将内容放置在卡片右上角的额外区域。 -->
+    <!-- action 是后端接收文件的接口地址。当点击按钮选择文件后，浏览器会自动向该地址发起 POST 请求。 -->
+    <template #extra> 
+      <a-upload
         name="file"
         :multiple="false"
         :show-upload-list="false"
         action="/api/upload/video"
         @change="handleUploadChange"
       >
-        <p class="ant-upload-drag-icon">
-          <icon-font type="icon-video" style="font-size: 48px" />
-        </p>
-        <p class="ant-upload-text">点击或将视频文件拖拽到此区域上传</p>
-        <p class="ant-upload-hint">支持 mp4, avi, mov 等格式</p>
-      </a-upload-dragger>
-    </div>
-
-    <a-divider>视频库</a-divider>
-
+        <a-button type="primary">
+          <template #icon><icon-font type="icon-video" /></template>
+          添加视频
+        </a-button>
+      </a-upload>
+    </template>
+    <!-- 栅格布局。:gutter 设置了视频卡片之间的间距（水平和垂直各 16 像素）。 -->
     <a-row :gutter="[16, 16]">
+      <!-- 动态渲染。遍历 videoList 数组，为数据库中的每个视频生成一个 <a-col> 列。 -->
       <a-col :xs="24" :sm="12" :md="8" :lg="6" v-for="item in videoList" :key="item.id">
+        <!-- 点击整个卡片会触发预览函数，传入当前视频的对象数据。 -->
         <a-card hoverable class="video-card" @click="handlePreview(item)">
           <template #cover>
             <div class="video-placeholder">
@@ -45,7 +46,7 @@
     </a-row>
     
     <a-empty v-if="videoList.length === 0" description="暂无视频数据" />
-
+    <!-- 弹窗容器。用于播放视频。destroyOnClose 属性非常重要，它确保关闭弹窗时视频会停止播放。 -->
     <a-modal
       v-model:visible="previewVisible"
       :title="previewTitle"
@@ -67,44 +68,48 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from 'vue'
+import { defineComponent, ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
-import axios from 'axios'
-import { onMounted } from 'vue'
-import { getVideoList, deleteVideo } from '@/api' // 引入统一定义的接口
+import { getVideoList, deleteVideo } from '@/api'
+
 export default defineComponent({
   setup() {
     const videoList = ref<any[]>([])
 
-    // 页面加载时拉取数据库中的视频
-  const fetchVideos = async () => {
-    try {
-      // 假设已在配置中处理了 /api 代理
-      const res = await getVideoList()
-      if (res.data.code === 1) {
-        videoList.value = res.data.data
+    // 修正：从数据库拉取视频的逻辑
+    const fetchVideos = async () => {
+      try {
+        const res = await getVideoList()
+        // 注意：根据项目的 axios 拦截器，res 已经是 response.data
+        if (res && res.code === 1) {
+          videoList.value = res.data // 直接赋值后端返回的数组
+        }
+      } catch (error) {
+        console.error('获取视频失败', error)
       }
-    } catch (error) {
-      console.error('获取视频失败', error)
     }
-  }
     
-    // 预览相关的状态
     const previewVisible = ref(false)
     const previewUrl = ref('')
     const previewTitle = ref('')
 
     const handleUploadChange = (info: any) => {
+      // 监听上传状态。当状态为 done（完成）时，从后端的响应（response）中拿到新视频在数据库中的记录。
+      // unshift(serverData)。将新视频插入到数组的最前面，让它显示在列表的第一位。
       if (info.file.status === 'done') {
-      const serverData = info.file.response.data
-      videoList.value.unshift(serverData) // 将后端返回的带 ID 的数据存入列表
-      message.success('视频已保存至数据库')
+        const serverData = info.file.response.data
+        videoList.value.unshift(serverData)
+        message.success('视频已保存至数据库')
+      } else if (info.file.status === 'error') {
+        message.error('文件上传失败，请检查后端服务')
+      }
     }
-    }
+
     const removeVideo = async (id: number) => {
       try {
         const res = await deleteVideo(id)
         if (res.code === 1) {
+          // 直接从当前本地数组中剔除掉那个 ID 的视频
           videoList.value = videoList.value.filter(v => v.id !== id)
           message.success('删除成功')
         }
@@ -113,19 +118,16 @@ export default defineComponent({
       }
     }
 
-    // 处理预览点击
     const handlePreview = (item: any) => {
-      if (!item.url) {
-        return message.warning('该视频暂不可预览')
-      }
+      if (!item.url) return message.warning('该视频暂不可预览')
       previewUrl.value = item.url
       previewTitle.value = item.name
       previewVisible.value = true
     }
-
+    // 当组件被挂载到页面上时，立即执行 fetchVideos。这就是为什么你刷新页面后，视频能自动从数据库里长出来。
     onMounted(() => {
-    fetchVideos()
-  })
+      fetchVideos()
+    })
 
     return {
       videoList,
@@ -141,14 +143,7 @@ export default defineComponent({
 </script>
 
 <style scoped>
-.upload-area {
-  padding: 20px;
-  background: #fafafa;
-  border: 1px dashed #d9d9d9;
-  border-radius: 8px;
-  margin-bottom: 24px;
-}
-
+/* 移除 upload-area 样式，因为它现在是顶部的一个按钮了 */
 .video-card {
   overflow: hidden;
   border-radius: 8px;
@@ -164,7 +159,6 @@ export default defineComponent({
   position: relative;
 }
 
-/* 播放遮罩效果 */
 .play-mask {
   position: absolute;
   top: 0;

@@ -24,36 +24,36 @@ export const constantRoutes = [
       }
     ]
   },
-  {
-    path: '/demo',
-    component: Layout,
-    name: 'Demo',
-    redirect: '/demo/table',
-    meta: {
-      title: '组件',
-      icon: 'icon-product'
-    },
-    children: [
-      {
-        path: '/demo/table',
-        name: 'Table',
-        component: () => import('@/views/demo/table/index.vue'),
-        meta: {
-          title: '表格',
-          icon: 'icon-packing-labeling'
-        }
-      },
-      {
-        path: '/demo/icon',
-        name: 'Icon',
-        component: () => import('@/views/demo/icon/index.vue'),
-        meta: {
-          title: '图标',
-          icon: 'icon-trade-assurance'
-        }
-      }
-    ]
-  },
+  // {
+  //   path: '/demo',
+  //   component: Layout,
+  //   name: 'Demo',
+  //   redirect: '/demo/table',
+  //   meta: {
+  //     title: '组件',
+  //     icon: 'icon-product'
+  //   },
+  //   children: [
+  //     {
+  //       path: '/demo/table',
+  //       name: 'Table',
+  //       component: () => import('@/views/demo/table/index.vue'),
+  //       meta: {
+  //         title: '表格',
+  //         icon: 'icon-packing-labeling'
+  //       }
+  //     },
+  //     {
+  //       path: '/demo/icon',
+  //       name: 'Icon',
+  //       component: () => import('@/views/demo/icon/index.vue'),
+  //       meta: {
+  //         title: '图标',
+  //         icon: 'icon-trade-assurance'
+  //       }
+  //     }
+  //   ]
+  // },
 
   {
     path: '/login',
@@ -70,105 +70,7 @@ export const constantRoutes = [
 ]
 
 export const asyncRoutes = [
-  // {
-  //   path: '/error',
-  //   name: 'Error',
-  //   component: Layout,
-  //   redirect: '/error/403',
-  //   meta: {
-  //     title: '错误页',
-  //     icon: 'icon-logistic-logo'
-  //   },
-  //   children: [
-  //     {
-  //       path: '/error/403',
-  //       name: 'Error403',
-  //       component: () => import('@/views/error/403.vue'),
-  //       meta: {
-  //         title: '403',
-  //         icon: 'icon-fencengpeizhi'
-  //       }
-  //     },
-  //     {
-  //       path: '/error/404',
-  //       name: 'Error404',
-  //       component: () => import('@/views/error/404.vue'),
-  //       meta: {
-  //         title: '404',
-  //         icon: 'icon-tongguanshuju'
-  //       }
-  //     }
-  //   ]
-  // },
-  // {
-  //   path: '/echart',
-  //   component: Layout,
-  //   name: 'echart',
-  //   redirect: '/echart/bar',
-  //   meta: {
-  //     title: '动态路由测试',
-  //     icon: 'icon-searchcart'
-  //   },
-  //   children: [
-  //     {
-  //       path: '/echart/bar',
-  //       name: 'Bar',
-  //       component: () => import('@/views/echart/bar/index.vue'),
-  //       meta: {
-  //         title: '路由测试1',
-  //         icon: 'icon-raw'
-  //       }
-  //     },
-  //     {
-  //       path: '/echart/line',
-  //       name: 'Line',
-  //       component: () => import('@/views/echart/line/index.vue'),
-  //       meta: {
-  //         title: '路由测试2',
-  //         icon: 'icon-share'
-  //       }
-  //     },
-  //     {
-  //       path: '/echart/pie',
-  //       name: 'Pie',
-  //       component: () => import('@/views/echart/pie/index.vue'),
-  //       meta: {
-  //         title: '路由测试3',
-  //         icon: 'icon-zhanghucaozuo'
-  //       }
-  //     }
-  //   ]
-  // },
-  // {
-  //   path: '/product',
-  //   component: Layout,
-  //   name: 'product-manage',
-  //   redirect: '/product/list',
-  //   meta: {
-  //     title: '产品管理',
-  //     icon: 'icon-searchcart'
-  //   },
-  //   children: [
-  //     {
-  //       path: '/product/list',
-  //       name: 'product-list',
-  //       component: () => import('@/views/product/list/index.vue'),
-  //       meta: {
-  //         title: '产品列表',
-  //         icon: 'icon-raw'
-  //       }
-  //     },
-  //     {
-  //       path: '/product/category',
-  //       name: 'review-manage',
-  //       component: () => import('@/views/product/category/index.vue'),
-  //       meta: {
-  //         title: '产品分类',
-  //         icon: 'icon-share'
-  //       }
-  //     }
-  //   ]
-  // },
+
   {
     path: '/data-source',
     component: Layout,
@@ -190,66 +92,20 @@ export const asyncRoutes = [
       }
     ]
   },
-  // {
-  //   path: '/order',
-  //   component: Layout,
-  //   name: 'order-manage',
-  //   redirect: '/order/list',
-  //   meta: {
-  //     title: '订单管理',
-  //     icon: 'icon-cart-Empty'
-  //   },
-  //   children: [
-  //     {
-  //       path: '/order/list',
-  //       name: 'order-list',
-  //       component: () => import('@/views/order/list/index.vue'),
-  //       meta: {
-  //         title: '订单列表',
-  //         icon: 'icon-Exportservices'
-  //       }
-  //     },
-  //     {
-  //       path: '/order/returnGoods',
-  //       name: 'return-goods',
-  //       component: () => import('@/views/order/return_goods/index.vue'),
-  //       meta: {
-  //         title: '退货管理',
-  //         icon: 'icon-column'
-  //       }
-  //     },
-  //     {
-  //       path: '/order/product',
-  //       component: EmptyLayout,
-  //       name: 'goods',
-  //       redirect: '/order/good/list',
-  //       meta: {
-  //         title: '货物管理',
-  //         icon: 'icon-searchcart'
-  //       },
-  //       children: [
-  //         {
-  //           path: '/order/good/list',
-  //           name: 'goods-list',
-  //           component: () => import('@/views/order/good/list/index.vue'),
-  //           meta: {
-  //             title: '货物列表',
-  //             icon: 'icon-apparel'
-  //           }
-  //         },
-  //         {
-  //           path: '/order/good/check',
-  //           name: 'goods-classify',
-  //           component: () => import('@/views/order/good/check/index.vue'),
-  //           meta: {
-  //             title: '退货管理',
-  //             icon: 'icon-add-account'
-  //           }
-  //         },
-  //       ]
-  //     },
-  //   ]
-  // },
+  {
+    path: '/algorithm',
+    component: Layout,
+    name: 'algorithm-manage',
+    meta: { title: '算法库管理', icon: 'icon-product' }, // 确保图标名存在
+    children: [
+      {
+        path: 'list',
+        name: 'algorithm-list',
+        component: () => import('@/views/algorithm/algorithmManage.vue'),
+        meta: { title: '算法列表' }
+      }
+    ]
+  },
   {
     path: '/permission',
     component: Layout,

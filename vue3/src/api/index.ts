@@ -41,3 +41,19 @@ export const deleteVideo = (id: number) => {
     method: 'delete'
   })
 }
+// src/api/index.ts
+// 1. 获取算法列表
+export const getAlgorithmList = () => {
+  return request({
+    url: '/algorithm', // 后端虽然写了 /api/algorithms，但代理通常会去掉 /api
+    method: 'get'
+  })
+}
+
+// 2. 删除算法
+export const deleteAlgorithm = (id: number) => {
+  return request({
+    url: `/algorithm/${id}`,
+    method: 'delete'
+  })
+}
