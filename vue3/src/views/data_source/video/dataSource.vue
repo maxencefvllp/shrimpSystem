@@ -20,10 +20,13 @@
 
     <a-row :gutter="[16, 16]">
       <a-col :xs="24" :sm="12" :md="8" :lg="6" v-for="item in videoList" :key="item.id">
-        <a-card hoverable class="video-card">
+        <a-card hoverable class="video-card" @click="handlePreview(item)">
           <template #cover>
             <div class="video-placeholder">
               <icon-font type="icon-video" style="font-size: 40px; color: #1890ff" />
+              <div class="play-mask">
+                <icon-font type="icon-play-circle" style="font-size: 32px; color: #fff" />
+              </div>
             </div>
           </template>
           
@@ -31,7 +34,7 @@
             <template #description>
               <div class="video-info">
                 <span>大小: {{ item.size }}</span>
-                <a-button type="link" danger size="small" @click="removeVideo(item.id)">
+                <a-button type="link" danger size="small" @click.stop="removeVideo(item.id)">
                   删除
                 </a-button>
               </div>
@@ -42,44 +45,95 @@
     </a-row>
     
     <a-empty v-if="videoList.length === 0" description="暂无视频数据" />
+
+    <a-modal
+      v-model:visible="previewVisible"
+      :title="previewTitle"
+      :footer="null"
+      width="800px"
+      destroyOnClose
+    >
+      <video
+        v-if="previewUrl"
+        :src="previewUrl"
+        controls
+        autoplay
+        style="width: 100%; border-radius: 4px;"
+      >
+        您的浏览器不支持视频播放。
+      </video>
+    </a-modal>
   </a-card>
 </template>
 
 <script lang="ts">
 import { defineComponent, ref } from 'vue'
 import { message } from 'ant-design-vue'
-
+import axios from 'axios'
+import { onMounted } from 'vue'
+import { getVideoList, deleteVideo } from '@/api' // 引入统一定义的接口
 export default defineComponent({
   setup() {
-    // 模拟存储上传后的视频列表
     const videoList = ref<any[]>([])
 
-    const handleUploadChange = (info: any) => {
-      const { status } = info.file
-      
-      // 在实际开发中，这里应处理 status === 'done'
-      // 为了演示，我们捕获上传尝试并模拟卡片生成
-      if (status === 'uploading') {
-        return;
+    // 页面加载时拉取数据库中的视频
+  const fetchVideos = async () => {
+    try {
+      // 假设已在配置中处理了 /api 代理
+      const res = await getVideoList()
+      if (res.data.code === 1) {
+        videoList.value = res.data.data
       }
+    } catch (error) {
+      console.error('获取视频失败', error)
+    }
+  }
+    
+    // 预览相关的状态
+    const previewVisible = ref(false)
+    const previewUrl = ref('')
+    const previewTitle = ref('')
 
-      // 模拟上传成功并保存到本地状态中
-      message.success(`${info.file.name} 已添加到视频库`)
-      videoList.value.push({
-        id: Date.now(),
-        name: info.file.name,
-        size: info.file.size ? (info.file.size / 1024 / 1024).toFixed(2) + ' MB' : '未知大小'
-      })
+    const handleUploadChange = (info: any) => {
+      if (info.file.status === 'done') {
+      const serverData = info.file.response.data
+      videoList.value.unshift(serverData) // 将后端返回的带 ID 的数据存入列表
+      message.success('视频已保存至数据库')
+    }
+    }
+    const removeVideo = async (id: number) => {
+      try {
+        const res = await deleteVideo(id)
+        if (res.code === 1) {
+          videoList.value = videoList.value.filter(v => v.id !== id)
+          message.success('删除成功')
+        }
+      } catch (error) {
+        message.error('删除操作失败')
+      }
     }
 
-    const removeVideo = (id: number) => {
-      videoList.value = videoList.value.filter(v => v.id !== id)
-      message.success('视频已移除')
+    // 处理预览点击
+    const handlePreview = (item: any) => {
+      if (!item.url) {
+        return message.warning('该视频暂不可预览')
+      }
+      previewUrl.value = item.url
+      previewTitle.value = item.name
+      previewVisible.value = true
     }
+
+    onMounted(() => {
+    fetchVideos()
+  })
 
     return {
       videoList,
+      previewVisible,
+      previewUrl,
+      previewTitle,
       handleUploadChange,
+      handlePreview,
       removeVideo
     }
   }
@@ -98,14 +152,35 @@ export default defineComponent({
 .video-card {
   overflow: hidden;
   border-radius: 8px;
+  position: relative;
 }
 
 .video-placeholder {
-  height: 120px;
+  height: 140px;
   background: #f0f2f5;
   display: flex;
   justify-content: center;
   align-items: center;
+  position: relative;
+}
+
+/* 播放遮罩效果 */
+.play-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.video-card:hover .play-mask {
+  opacity: 1;
 }
 
 .video-info {
