@@ -7,7 +7,9 @@
 
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
-    "module": "nodenext",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "esModuleInterop": true,
     "target": "esnext",
     "types": [],
     // For nodejs:
@@ -39,6 +41,12 @@
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
+    "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
+  },
+  // --- 添加以下部分 ---
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
   }
 }

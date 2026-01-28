@@ -1,3 +1,4 @@
+// 动态路由并不是直接全部加载的，而是通过 src/store/actions.ts 中的 userRouter 列表进行过滤。
 import { CHANGEROUTE } from './mutation-types'
 import { asyncRoutes, constantRoutes } from '@/router'
 import { recursionRouter, setSingleItem } from '@/utils/recursion-router'
@@ -14,7 +15,7 @@ export default {
       'review-manage', 'order-manage', 'order-list', 'return-goods', 
       'goods', 'goods-list', 'goods-classify', 'permission', 
       'user-manage', 'role-manage', 'menu-manage','data-source',   // 父级菜单
-      'video-manage',  // 子级页面
+      'video-manage','algorithm-manage','algorithm-list',  // 子级页面
     ]
     
     // 模拟接口成功的逻辑

@@ -21,7 +21,7 @@ import {
   Result,
   Carousel,
   Upload,
-  // Message
+  Empty,
 
 } from 'ant-design-vue'
 import 'ant-design-vue/dist/antd.css'
@@ -48,6 +48,7 @@ const components = [
   Result,
   Carousel,
   Upload,
+  Empty,
 ]
 
 export function setupAntd (app: any): any {
