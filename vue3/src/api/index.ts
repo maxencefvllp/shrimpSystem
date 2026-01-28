@@ -41,6 +41,13 @@ export const deleteVideo = (id: number) => {
     method: 'delete'
   })
 }
+export const addStreamVideo = (data:{name:string,url:string})=> {
+  return request({
+    url: `/video/stream`,
+    method: 'post',
+    data
+  })
+}
 // src/api/index.ts
 // 1. 获取算法列表
 export const getAlgorithmList = () => {
