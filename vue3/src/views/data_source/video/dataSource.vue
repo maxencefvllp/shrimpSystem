@@ -100,12 +100,13 @@
 <script lang="ts">
 import { defineComponent, ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
-import { getVideoList, deleteVideo } from '@/api'
+import { getVideoList, deleteVideo,addStreamVideo } from '@/api'
 import axios from 'axios';
 
 export default defineComponent({
   setup() {
     const videoList = ref<any[]>([])
+    const agoList = ref<any[]>([])
     const addModalVisible = ref(false) // 控制“添加”弹窗
     const activeTab = ref('local')    // 当前选中的页签
     const submitting = ref(false)     // 流地址提交状态
@@ -152,7 +153,7 @@ export default defineComponent({
       submitting.value = true
       try {
         // 调用你在后端新写的 /api/video/stream 接口
-        const res = await axios.post('/api/video/stream', streamForm.value)
+        const res = await addStreamVideo(streamForm.value.name,streamForm.value.url)
         if (res.data.code === 1) {
           message.success('流地址已保存')
           addModalVisible.value = false // 关闭弹窗
@@ -191,6 +192,7 @@ export default defineComponent({
 
     return {
       videoList,
+      agoList,
       previewVisible,
       previewUrl,
       previewTitle,

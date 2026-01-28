@@ -160,7 +160,7 @@ app.delete('/videos/:id', async (req, res) => {
   }
 });
 // 添加流地址接口
-app.post('/api/video/stream', async (req, res) => {
+app.post('/video/stream', async (req, res) => {
   const { name, url } = req.body; // url 为 rtsp://...
   const streamId = Date.now().toString();
   
