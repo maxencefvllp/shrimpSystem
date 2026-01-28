@@ -3,19 +3,12 @@
     <!-- 插槽（Slot）技术。将内容放置在卡片右上角的额外区域。 -->
     <!-- action 是后端接收文件的接口地址。当点击按钮选择文件后，浏览器会自动向该地址发起 POST 请求。 -->
     <template #extra> 
-      <a-upload
-        name="file"
-        :multiple="false"
-        :show-upload-list="false"
-        action="/api/upload/video"
-        @change="handleUploadChange"
-      >
-        <a-button type="primary">
-          <template #icon><icon-font type="icon-video" /></template>
-          添加视频
-        </a-button>
-      </a-upload>
+      <a-button type="primary" @click="addModalVisible = true">
+        <template #icon><icon-font type="icon-plus" /></template>
+        添加视频资源
+      </a-button>
     </template>
+    
     <!-- 栅格布局。:gutter 设置了视频卡片之间的间距（水平和垂直各 16 像素）。 -->
     <a-row :gutter="[16, 16]">
       <!-- 动态渲染。遍历 videoList 数组，为数据库中的每个视频生成一个 <a-col> 列。 -->
@@ -41,6 +34,43 @@
               </div>
             </template>
           </a-card-meta>
+          <a-modal
+          v-model:visible="addModalVisible"
+          title="添加视频资源"
+          :footer="null"
+          destroyOnClose
+        >
+          <a-tabs v-model:activeKey="activeTab">
+            <a-tab-pane key="local" tab="本地视频">
+              <div style="padding: 20px 0">
+                <a-upload-dragger
+                  name="file"
+                  :multiple="false"
+                  action="/api/upload/video"
+                  @change="handleUploadChange"
+                >
+                  <p class="ant-upload-drag-icon"><icon-font type="icon-upload" /></p>
+                  <p class="ant-upload-text">点击或拖拽本地视频文件上传</p>
+                </a-upload-dragger>
+              </div>
+            </a-tab-pane>
+
+            <a-tab-pane key="stream" tab="流式/摄像头">
+              <a-form layout="vertical">
+                <a-form-item label="名称" required>
+                  <a-input v-model:value="streamForm.name" placeholder="如：3号对虾养殖池" />
+                </a-form-item>
+                <a-form-item label="RTSP/HLS 地址" required>
+                  <a-input v-model:value="streamForm.url" placeholder="rtsp://admin:123456@192.168.1.10..." />
+                </a-form-item>
+                <a-alert message="提示：RTSP 流将自动开启 1 小时循环录制" type="info" show-icon style="margin-bottom: 15px" />
+                <a-button type="primary" block @click="submitStream">确认接入</a-button>
+              </a-form>
+            </a-tab-pane>
+          </a-tabs>
+        </a-modal>
+
+
         </a-card>
       </a-col>
     </a-row>
@@ -71,10 +101,19 @@
 import { defineComponent, ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { getVideoList, deleteVideo } from '@/api'
+import axios from 'axios';
 
 export default defineComponent({
   setup() {
     const videoList = ref<any[]>([])
+    const addModalVisible = ref(false) // 控制“添加”弹窗
+    const activeTab = ref('local')    // 当前选中的页签
+    const submitting = ref(false)     // 流地址提交状态
+
+    const streamForm = ref({
+      name: '',
+      url: ''
+    })
 
     // 修正：从数据库拉取视频的逻辑
     const fetchVideos = async () => {
@@ -93,18 +132,39 @@ export default defineComponent({
     const previewUrl = ref('')
     const previewTitle = ref('')
 
+    // 修改原有的 handleUploadChange，增加关闭弹窗逻辑
     const handleUploadChange = (info: any) => {
-      // 监听上传状态。当状态为 done（完成）时，从后端的响应（response）中拿到新视频在数据库中的记录。
-      // unshift(serverData)。将新视频插入到数组的最前面，让它显示在列表的第一位。
       if (info.file.status === 'done') {
         const serverData = info.file.response.data
         videoList.value.unshift(serverData)
-        message.success('视频已保存至数据库')
+        message.success('本地视频上传成功')
+        addModalVisible.value = false // 上传完成后自动关闭弹窗
       } else if (info.file.status === 'error') {
-        message.error('文件上传失败，请检查后端服务')
+        message.error('上传失败')
       }
     }
-
+    // 新增：提交流地址到后端的逻辑
+    const submitStream = async () => {
+      if (!streamForm.value.name || !streamForm.value.url) {
+        return message.warning('请填写完整的名称和地址')
+      }
+      
+      submitting.value = true
+      try {
+        // 调用你在后端新写的 /api/video/stream 接口
+        const res = await axios.post('/api/video/stream', streamForm.value)
+        if (res.data.code === 1) {
+          message.success('流地址已保存')
+          addModalVisible.value = false // 关闭弹窗
+          streamForm.value = { name: '', url: '' } // 重置表单
+          fetchVideos() // 重新拉取列表以显示新数据
+        }
+      } catch (error) {
+        message.error('保存流地址失败')
+      } finally {
+        submitting.value = false
+      }
+    }
     const removeVideo = async (id: number) => {
       try {
         const res = await deleteVideo(id)
@@ -134,9 +194,14 @@ export default defineComponent({
       previewVisible,
       previewUrl,
       previewTitle,
+      addModalVisible,
+      streamForm,
+      activeTab,
+      submitting,
       handleUploadChange,
       handlePreview,
-      removeVideo
+      removeVideo,
+      submitStream
     }
   }
 })

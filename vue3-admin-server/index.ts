@@ -6,7 +6,8 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
-
+import fs from 'fs'; 
+import ffmpeg from 'fluent-ffmpeg'; // 现在应该不再报红了
 // ESM 环境下获取 __dirname 的兼容处理
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -30,6 +31,7 @@ const dbPromise = open({
       name TEXT,
       url TEXT,
       size TEXT,
+      type TEXT DEFAULT 'file', -- 新增字段：'file' 代表上传文件，'stream' 代表流地址
       upload_time DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -57,6 +59,27 @@ const storage = multer.diskStorage({
   }
 });
 const upload = multer({ storage });
+
+// 启动 RTSP 转 HLS 任务的函数
+const startRtspToHls = (rtspUrl: string, streamName: string) => {
+  const outputDir = path.join(__dirname, 'uploads', 'streams', streamName);
+  if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+
+  ffmpeg(rtspUrl)
+    .addOptions([
+      '-profile:v baseline',
+      '-level 3.0',
+      '-start_number 0',
+      '-hls_time 10',        // 每个切片 10 秒
+      '-hls_list_size 360',  // 关键：保留 360 个切片，即 360 * 10s = 3600s (1小时)
+      '-hls_flags delete_segments', // 关键：自动删除 1 小时之前的旧切片
+      '-f hls'
+    ])
+    .output(path.join(outputDir, 'index.m3u8'))
+    .on('start', () => console.log(`RTSP 流 ${streamName} 开始转码...`))
+    .on('error', (err) => console.error(`流错误: ${err.message}`))
+    .run();
+};
 
 // 1. 登录接口
 app.post('/user/login', (req, res) => {
@@ -134,6 +157,25 @@ app.delete('/videos/:id', async (req, res) => {
     res.json({ code: 1, message: '删除成功' });
   } catch (err) {
     res.json({ code: 0, message: '删除失败' });
+  }
+});
+// 添加流地址接口
+app.post('/api/video/stream', async (req, res) => {
+  const { name, url } = req.body; // url 为 rtsp://...
+  const streamId = Date.now().toString();
+  
+  // 如果是 RTSP，启动后端转流
+  if (url.startsWith('rtsp')) {
+    startRtspToHls(url, streamId);
+    const streamUrl = `http://localhost:3000/uploads/streams/${streamId}/index.m3u8`;
+    
+    // 存入数据库
+    const db = await dbPromise;
+    await db.run(
+      "INSERT INTO videos (name, url, size, type) VALUES (?, ?, '实时流(1H)', 'rtsp')",
+      [name, streamUrl]
+    );
+    res.json({ code: 1, message: 'RTSP 流已接入，正在进行 1 小时滚动录制' });
   }
 });
 
