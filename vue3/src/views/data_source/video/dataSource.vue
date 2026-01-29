@@ -1,7 +1,6 @@
 <template>
   <a-card title="视频管理">
-    <!-- 插槽（Slot）技术。将内容放置在卡片右上角的额外区域。 -->
-    <!-- action 是后端接收文件的接口地址。当点击按钮选择文件后，浏览器会自动向该地址发起 POST 请求。 -->
+    <!-- 右上角添加按钮 -->
     <template #extra> 
       <a-button type="primary" @click="addModalVisible = true">
         <template #icon><icon-font type="icon-plus" /></template>
@@ -9,11 +8,9 @@
       </a-button>
     </template>
     
-    <!-- 栅格布局。:gutter 设置了视频卡片之间的间距（水平和垂直各 16 像素）。 -->
+    <!-- 视频列表栅格布局 -->
     <a-row :gutter="[16, 16]">
-      <!-- 动态渲染。遍历 videoList 数组，为数据库中的每个视频生成一个 <a-col> 列。 -->
       <a-col :xs="24" :sm="12" :md="8" :lg="6" v-for="item in videoList" :key="item.id">
-        <!-- 点击整个卡片会触发预览函数，传入当前视频的对象数据。 -->
         <a-card hoverable class="video-card" @click="handlePreview(item)">
           <template #cover>
             <div class="video-placeholder">
@@ -34,49 +31,50 @@
               </div>
             </template>
           </a-card-meta>
-          <a-modal
-          v-model:visible="addModalVisible"
-          title="添加视频资源"
-          :footer="null"
-          destroyOnClose
-        >
-          <a-tabs v-model:activeKey="activeTab">
-            <a-tab-pane key="local" tab="本地视频">
-              <div style="padding: 20px 0">
-                <a-upload-dragger
-                  name="file"
-                  :multiple="false"
-                  action="/api/upload/video"
-                  @change="handleUploadChange"
-                >
-                  <p class="ant-upload-drag-icon"><icon-font type="icon-upload" /></p>
-                  <p class="ant-upload-text">点击或拖拽本地视频文件上传</p>
-                </a-upload-dragger>
-              </div>
-            </a-tab-pane>
-
-            <a-tab-pane key="stream" tab="流式/摄像头">
-              <a-form layout="vertical">
-                <a-form-item label="名称" required>
-                  <a-input v-model:value="streamForm.name" placeholder="如：3号对虾养殖池" />
-                </a-form-item>
-                <a-form-item label="RTSP/HLS 地址" required>
-                  <a-input v-model:value="streamForm.url" placeholder="rtsp://admin:123456@192.168.1.10..." />
-                </a-form-item>
-                <a-alert message="提示：RTSP 流将自动开启 1 小时循环录制" type="info" show-icon style="margin-bottom: 15px" />
-                <a-button type="primary" block @click="submitStream">确认接入</a-button>
-              </a-form>
-            </a-tab-pane>
-          </a-tabs>
-        </a-modal>
-
-
-        </a-card>
+        </a-card> <!-- 注意：这里闭合 a-card，移除内部的 a-modal -->
       </a-col>
     </a-row>
     
     <a-empty v-if="videoList.length === 0" description="暂无视频数据" />
-    <!-- 弹窗容器。用于播放视频。destroyOnClose 属性非常重要，它确保关闭弹窗时视频会停止播放。 -->
+
+    <!-- ❶ 修复：把添加视频的弹窗移到 v-for 循环外部，a-row 下方 -->
+    <a-modal
+      v-model:visible="addModalVisible"
+      title="添加视频资源"
+      :footer="null"
+      destroyOnClose
+    >
+      <a-tabs v-model:activeKey="activeTab">
+        <a-tab-pane key="local" tab="本地视频">
+          <div style="padding: 20px 0">
+            <a-upload-dragger
+              name="file"
+              :multiple="false"
+              action="/api/upload/video"
+              @change="handleUploadChange"
+            >
+              <p class="ant-upload-drag-icon"><icon-font type="icon-upload" /></p>
+              <p class="ant-upload-text">点击或拖拽本地视频文件上传</p>
+            </a-upload-dragger>
+          </div>
+        </a-tab-pane>
+
+        <a-tab-pane key="stream" tab="流式/摄像头">
+          <a-form layout="vertical">
+            <a-form-item label="名称" required>
+              <a-input v-model:value="streamForm.name" placeholder="如：3号对虾养殖池" />
+            </a-form-item>
+            <a-form-item label="RTSP/HLS 地址" required>
+              <a-input v-model:value="streamForm.url" placeholder="rtsp://admin:123456@192.168.1.10..." />
+            </a-form-item>
+            <a-alert message="提示：RTSP 流将自动开启 1 小时循环录制" type="info" show-icon style="margin-bottom: 15px" />
+            <a-button type="primary" block @click="submitStream">确认接入</a-button>
+          </a-form>
+        </a-tab-pane>
+      </a-tabs>
+    </a-modal>
+
+    <!-- ❷ 视频预览弹窗（保留，位置正确） -->
     <a-modal
       v-model:visible="previewVisible"
       :title="previewTitle"
@@ -153,8 +151,11 @@ export default defineComponent({
       submitting.value = true
       try {
         // 调用你在后端新写的 /api/video/stream 接口
-        const res = await addStreamVideo(streamForm.value.name,streamForm.value.url)
-        if (res.data.code === 1) {
+        const res = await addStreamVideo({
+          name: streamForm.value.name,
+          url:streamForm.value.url
+        })
+        if (res.code === 1) {
           message.success('流地址已保存')
           addModalVisible.value = false // 关闭弹窗
           streamForm.value = { name: '', url: '' } // 重置表单

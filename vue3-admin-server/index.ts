@@ -8,11 +8,15 @@ import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import fs from 'fs'; 
 import ffmpeg from 'fluent-ffmpeg'; // 现在应该不再报红了
+import { exec, type ExecException } from 'child_process';
+import shellEscape from 'shell-escape';
 // ESM 环境下获取 __dirname 的兼容处理
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 app.use(cors());
 app.use(express.json());
 
@@ -31,10 +35,11 @@ const dbPromise = open({
       name TEXT,
       url TEXT,
       size TEXT,
-      type TEXT DEFAULT 'file', -- 新增字段：'file' 代表上传文件，'stream' 代表流地址
+      type TEXT DEFAULT 'file',
       upload_time DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  
   // index.ts 初始化部分
   await db.exec(`
     CREATE TABLE IF NOT EXISTS algorithms (
@@ -61,25 +66,64 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // 启动 RTSP 转 HLS 任务的函数
-const startRtspToHls = (rtspUrl: string, streamName: string) => {
-  const outputDir = path.join(__dirname, 'uploads', 'streams', streamName);
-  if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+// 先确保顶部引入了所有必要模块（和其他import放在一起）
 
-  ffmpeg(rtspUrl)
-    .addOptions([
-      '-profile:v baseline',
-      '-level 3.0',
-      '-start_number 0',
-      '-hls_time 10',        // 每个切片 10 秒
-      '-hls_list_size 360',  // 关键：保留 360 个切片，即 360 * 10s = 3600s (1小时)
-      '-hls_flags delete_segments', // 关键：自动删除 1 小时之前的旧切片
-      '-f hls'
-    ])
-    .output(path.join(outputDir, 'index.m3u8'))
-    .on('start', () => console.log(`RTSP 流 ${streamName} 开始转码...`))
-    .on('error', (err) => console.error(`流错误: ${err.message}`))
-    .run();
-};
+/**
+ * RTSP流转换为HLS流（自动创建目录、兼容特殊字符、带详细日志）
+ * @param rtspUrl RTSP流地址（支持包含&等特殊字符）
+ * @param streamId 唯一流ID（用于创建独立文件夹）
+ */
+
+function startRtspToHls(rtspUrl: string, streamId: string) {
+  // 1. 构建输出目录（和之前一致）
+  const outputDir = path.join(__dirname, 'uploads', 'streams', streamId);
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+    console.log(`✅ 自动创建流目录成功：${outputDir}`);
+  }
+  const outputM3u8Path = path.join(outputDir, 'index.m3u8');
+
+  // 2. 生成批处理文件的内容（直接写死FFmpeg命令，用绝对路径）
+  const batContent = `@echo off
+:: 这里替换为你实际的FFmpeg完整路径（必须是绝对路径）
+"D:\\ffmpeg\\bin\\ffmpeg.exe" ^
+-rtsp_transport tcp ^
+-max_delay 5000000 ^
+-i "${rtspUrl}" ^
+-c:v libx264 ^
+-c:a aac ^
+-preset ultrafast ^
+-f hls ^
+-hls_time 5 ^
+-hls_list_size 720 ^
+-hls_flags delete_segments+omit_endlist ^
+-hls_allow_cache 0 ^
+-y ^
+"${outputM3u8Path}"
+`;
+
+  // 3. 保存批处理文件到临时目录（比如项目根目录的temp文件夹）
+  const tempDir = path.join(__dirname, 'temp');
+  if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+  const batPath = path.join(tempDir, `rtsp_${streamId}.bat`);
+  fs.writeFileSync(batPath, batContent, 'utf8');
+  console.log(`✅ 生成批处理文件：${batPath}`);
+
+  // 4. 执行批处理文件（用cmd /c 确保在命令提示符中执行）
+  // 把执行批处理的 cmd 命令改成下面这样，添加编码切换
+  const cmd = `cmd /c "chcp 65001 && cd /d ${path.dirname(batPath)} && ${path.basename(batPath)}"`;
+  console.log(`📌 执行批处理命令：${cmd}`);
+  
+  const childProcess = exec(cmd, (error: ExecException | null, stdout: string, stderr: string) => {
+    console.log(`📋 批处理输出：\n${stdout}`);
+    if (stderr) console.warn(`⚠️ 批处理警告：\n${stderr}`);
+    if (error) console.error(`❌ 批处理执行失败：${error.message}`);
+  });
+
+  childProcess.on('exit', (code: number | null) => {
+    if (code !== 0) console.error(`❌ 批处理进程退出码：${code}`);
+  });
+}
 
 // 1. 登录接口
 app.post('/user/login', (req, res) => {
@@ -159,23 +203,57 @@ app.delete('/videos/:id', async (req, res) => {
     res.json({ code: 0, message: '删除失败' });
   }
 });
-// 添加流地址接口
+
+// 放在 startRtspToHls 函数下方
 app.post('/video/stream', async (req, res) => {
-  const { name, url } = req.body; // url 为 rtsp://...
-  const streamId = Date.now().toString();
-  
-  // 如果是 RTSP，启动后端转流
-  if (url.startsWith('rtsp')) {
-    startRtspToHls(url, streamId);
-    const streamUrl = `http://localhost:3000/uploads/streams/${streamId}/index.m3u8`;
-    
-    // 存入数据库
+  try {
+    const { name, url } = req.body;
+
+    // 校验必填参数
+    if (!name || !url) {
+      return res.json({
+        code: 0,
+        message: '请填写完整的视频名称和流地址'
+      });
+    }
+
+    const streamId = Date.now().toString();
+    let finalUrl = url;
+
+    // 仅当是RTSP地址时，才进行转换
+    if (url.toLowerCase().startsWith('rtsp://')) {
+      // 调用转换函数（自动创建目录、生成HLS文件）
+      startRtspToHls(url, streamId);
+      // 拼接前端可访问的HLS地址（和静态资源配置对应）
+      finalUrl = `http://localhost:3000/uploads/streams/${streamId}/index.m3u8`;
+      console.log(`✅ RTSP流转换成功，前端访问地址：${finalUrl}`);
+    }
+
+    // 写入数据库（保持你原来的数据库逻辑，此处仅做示例）
     const db = await dbPromise;
+    // 替换为你的实际数据库插入语句
     await db.run(
-      "INSERT INTO videos (name, url, size, type) VALUES (?, ?, '实时流(1H)', 'rtsp')",
-      [name, streamUrl]
+      'INSERT INTO videos (name, url, size, type) VALUES (?, ?, ?, ?)',
+      [name, finalUrl, '实时流（1小时循环）', 'stream']
     );
-    res.json({ code: 1, message: 'RTSP 流已接入，正在进行 1 小时滚动录制' });
+
+    // 返回成功响应（和前端预期的格式一致）
+    res.json({
+      code: 1,
+      message: '流地址接入成功',
+      data: {
+        id: Date.now(), // 替换为数据库返回的实际ID
+        name,
+        url: finalUrl,
+        size: '实时流（1小时循环）'
+      }
+    });
+  } catch (err) {
+    console.error(`❌ 接入流地址失败：${(err as Error).message}`);
+    res.json({
+      code: 0,
+      message: '流地址接入失败，请稍后重试'
+    });
   }
 });
 
