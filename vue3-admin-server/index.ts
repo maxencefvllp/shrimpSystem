@@ -296,6 +296,89 @@ app.post('/video/clip',async(req,res)=>{
     res.json({ code: 0, message: '服务器错误' });
   }
 })
+// --- 新增：导出流媒体为 MP4 接口 ---
+app.post('/video/export', async (req, res) => {
+  try {
+    const { url, name } = req.body;
+    if (!url || !name) {
+      return res.json({ code: 0, message: '参数不完整' });
+    }
+
+    // 1. 解析流 ID 和本地路径
+    // 假设 URL 格式为: http://localhost:3000/uploads/streams/{streamId}/index.m3u8
+    const match = url.match(/streams\/([^\/]+)\/index\.m3u8/);
+    if (!match) {
+      return res.json({ code: 0, message: '无效的流地址格式' });
+    }
+    const streamId = match[1];
+    const streamDir = path.join(__dirname, 'uploads', 'streams', streamId);
+    const m3u8Path = path.join(streamDir, 'index.m3u8');
+
+    if (!fs.existsSync(m3u8Path)) {
+      return res.json({ code: 0, message: '流文件不存在或已过期' });
+    }
+
+    // 2. 准备导出文件的路径和名称
+    const exportId = Date.now();
+    // 使用 "原名-导出-时间戳" 的格式
+    const newName = `${name}-导出-${exportId}`; 
+    const fileName = `export-${exportId}.mp4`;
+    const outputPath = path.join(__dirname, 'uploads', fileName);
+
+    // 3. 核心逻辑：创建带 ENDLIST 的临时 m3u8
+    // 因为实时流没有结束标记，ffmpeg 可能会一直等待。我们手动创建一个静态快照。
+    const tempM3u8Path = path.join(streamDir, `snapshot-${exportId}.m3u8`);
+    
+    let m3u8Content = fs.readFileSync(m3u8Path, 'utf-8');
+    // 如果没有结束标记，手动追加
+    if (!m3u8Content.includes('#EXT-X-ENDLIST')) {
+      m3u8Content += '\n#EXT-X-ENDLIST';
+    }
+    fs.writeFileSync(tempM3u8Path, m3u8Content, 'utf-8');
+
+    // 4. 使用 FFmpeg 转封装 (copy 模式极快，不重新编码)
+    // 同样使用绝对路径调用 ffmpeg
+    const ffmpegCmd = `"${path.join('D:', 'ffmpeg', 'bin', 'ffmpeg.exe')}" -i "${tempM3u8Path}" -c copy -bsf:a aac_adtstoasc -y "${outputPath}"`;
+    
+    console.log(`正在导出流: ${name}`);
+    
+    exec(ffmpegCmd, async (error) => {
+      // 清理临时 m3u8 文件
+      if (fs.existsSync(tempM3u8Path)) fs.unlinkSync(tempM3u8Path);
+
+      if (error) {
+        console.error(`导出失败: ${error.message}`);
+        return res.json({ code: 0, message: '视频导出失败' });
+      }
+
+      // 5. 写入数据库
+      try {
+        const db = await dbPromise;
+        const finalUrl = `http://localhost:3000/uploads/${fileName}`;
+        const stats = fs.statSync(outputPath);
+        const sizeStr = (stats.size / 1024 / 1024).toFixed(2) + ' MB';
+
+        const result = await db.run(
+          'INSERT INTO videos (name, url, size, type) VALUES (?, ?, ?, ?)',
+          [newName, finalUrl, sizeStr, 'file'] // type='file' 确保它可以被剪辑
+        );
+
+        res.json({
+          code: 1,
+          message: '流视频已成功导出为MP4',
+          data: { id: result.lastID, name: newName, url: finalUrl }
+        });
+      } catch (dbErr) {
+        console.error(dbErr);
+        res.json({ code: 0, message: '数据库写入失败' });
+      }
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.json({ code: 0, message: '服务器内部错误' });
+  }
+});
 // 静态资源托管
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 

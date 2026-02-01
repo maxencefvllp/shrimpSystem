@@ -76,3 +76,11 @@ export const deleteAlgorithm = (id: number) => {
     method: 'delete'
   })
 }
+
+export const exportStreamVideo = (data: { url: string, name: string }) => {
+    return request({
+        url: '/video/export',
+        method: 'post',
+        data
+    })
+}
