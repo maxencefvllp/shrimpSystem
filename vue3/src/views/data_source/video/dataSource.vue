@@ -78,19 +78,33 @@
     <a-modal
       v-model:visible="previewVisible"
       :title="previewTitle"
-      :footer="null"
       width="800px"
       destroyOnClose
+      @cancel="resetClipStatus"
     >
       <video
+        ref="videoPlayer"
         v-if="previewUrl"
         :src="previewUrl"
         controls
-        autoplay
         style="width: 100%; border-radius: 4px;"
-      >
-        您的浏览器不支持视频播放。
-      </video>
+        @loadedmetadata="onVideoLoaded"
+      ></video>
+
+      <div v-if="previewUrl" style="margin-top: 20px; padding: 0 10px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+          <span>选取片段: {{ clipRange[0] }}s - {{ clipRange[1] }}s</span>
+          <a-button type="primary" size="small" :loading="clipping" @click="confirmClip">
+            保存该片段
+          </a-button>
+        </div>
+        <a-slider
+          range
+          v-model:value="clipRange"
+          :max="videoDuration"
+          :tip-formatter="value => `${value}s`"
+        />
+      </div>
     </a-modal>
   </a-card>
 </template>
@@ -98,8 +112,9 @@
 <script lang="ts">
 import { defineComponent, ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
-import { getVideoList, deleteVideo,addStreamVideo } from '@/api'
+import { getVideoList, deleteVideo,addStreamVideo,clipVideoApi} from '@/api'
 import axios from 'axios';
+
 
 export default defineComponent({
   setup() {
@@ -130,6 +145,49 @@ export default defineComponent({
     const previewVisible = ref(false)
     const previewUrl = ref('')
     const previewTitle = ref('')
+
+    const videoPlayer = ref<HTMLVideoElement | null>(null)
+    const videoDuration = ref(0)
+    const clipRange = ref<[number, number]>([0, 0])
+    const clipping = ref(false)
+
+        // 当视频加载元数据（时长）时触发
+    const onVideoLoaded = () => {
+      if (videoPlayer.value) {
+        videoDuration.value = Math.floor(videoPlayer.value.duration)
+        // 对于直播流，duration 可能是 Infinity，这里需要做容错处理
+        if (videoDuration.value === Infinity || isNaN(videoDuration.value)) {
+          videoDuration.value = 3600; // 如果是循环录制流，默认设为1小时
+        }
+        clipRange.value = [0, Math.min(60, videoDuration.value)] // 默认选取前60秒
+      }
+    }
+
+    const confirmClip = async () => {
+      clipping.value = true
+      try {
+        const res = await clipVideoApi({
+          sourceUrl: previewUrl.value,
+          startTime: clipRange.value[0],
+          endTime: clipRange.value[1],
+          name: previewTitle.value
+        })
+        if (res.code === 1) {
+          message.success('片段已另存为新视频')
+          fetchVideos() // 刷新列表
+        }
+      } catch (error) {
+        message.error('剪辑保存失败')
+      } finally {
+        clipping.value = false
+      }
+    }
+
+    const resetClipStatus = () => {
+      clipRange.value = [0, 0]
+      videoDuration.value = 0
+    }
+
 
     // 修改原有的 handleUploadChange，增加关闭弹窗逻辑
     const handleUploadChange = (info: any) => {
@@ -204,7 +262,14 @@ export default defineComponent({
       handleUploadChange,
       handlePreview,
       removeVideo,
-      submitStream
+      submitStream,
+      resetClipStatus,
+      clipRange,
+      clipping,
+      confirmClip,
+      videoPlayer,
+      onVideoLoaded,
+      videoDuration
     }
   }
 })

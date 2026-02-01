@@ -22,6 +22,8 @@ import {
   Carousel,
   Upload,
   Empty,
+  Spin,
+  Slider,
 
 } from 'ant-design-vue'
 import 'ant-design-vue/dist/antd.css'
@@ -49,6 +51,8 @@ const components = [
   Carousel,
   Upload,
   Empty,
+  Spin,
+  Slider,
 ]
 
 export function setupAntd (app: any): any {

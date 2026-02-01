@@ -256,7 +256,46 @@ app.post('/video/stream', async (req, res) => {
     });
   }
 });
+app.post('/video/clip',async(req,res)=>{
+  try{
+    const {sourceUrl,startTime,endTime,name} = req.body;
+    if(!sourceUrl||startTime ===undefined||!endTime)
+    {
+      return res.json({code:0,message:'参数不完整'});
+    }
+    const clipId =Date.now();
+    const fileName = `clip-${clipId}.mp4`;
+    const outputPath = path.join(__dirname,'uploads',fileName);
+    const duration = endTime-startTime;
 
+    const ffmpegCmd = `"${path.join('D:', 'ffmpeg', 'bin', 'ffmpeg.exe')}" -ss ${startTime} -t ${duration} -i "${sourceUrl}" -c:v libx264 -c:a aac -strict -2 "${outputPath}"`;
+    exec(ffmpegCmd, async (error) => {
+      if (error) {
+        console.error(`剪辑失败: ${error.message}`);
+        return res.json({ code: 0, message: '视频剪辑失败' });
+      }
+
+      // 写入数据库
+      const db = await dbPromise;
+      const finalUrl = `http://localhost:3000/uploads/${fileName}`;
+      const stats = fs.statSync(outputPath);
+      const sizeStr = (stats.size / 1024 / 1024).toFixed(2) + ' MB';
+
+      const result = await db.run(
+        'INSERT INTO videos (name, url, size, type) VALUES (?, ?, ?, ?)',
+        [`剪辑-${name}`, finalUrl, sizeStr, 'file']
+      );
+
+      res.json({
+        code: 1,
+        message: '片段截取成功',
+        data: { id: result.lastID, name: `剪辑-${name}`, url: finalUrl }
+      });
+    });
+  } catch (err) {
+    res.json({ code: 0, message: '服务器错误' });
+  }
+})
 // 静态资源托管
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 

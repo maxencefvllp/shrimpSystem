@@ -48,6 +48,18 @@ export const addStreamVideo = (data:{name:string,url:string})=> {
     data
   })
 }
+export const clipVideoApi = (data: { 
+  sourceUrl: string, 
+  startTime: number, 
+  endTime: number, 
+  name: string 
+}) => {
+  return request({
+    url: '/video/clip',
+    method: 'post',
+    data
+  })
+}
 // src/api/index.ts
 // 1. 获取算法列表
 export const getAlgorithmList = () => {
